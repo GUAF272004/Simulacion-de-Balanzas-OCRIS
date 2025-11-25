@@ -15,7 +15,7 @@ namespace Simulacion_de_Balanzas_OCRIS // IMPORTANTE: Cambia por tu namespace
 
         FirmwareState _currentState = FirmwareState.Booting;
         List<BalanzaFisica> _balanzas = new List<BalanzaFisica>();
-        IServerAPI _server = new MockServer();
+        IServerAPI _server = new RealServer("https://ocris.stellarbanana.com");
 
         int _configIndexIterator = 0;
         int _selectedScaleId = -1;
@@ -347,33 +347,36 @@ namespace Simulacion_de_Balanzas_OCRIS // IMPORTANTE: Cambia por tu namespace
 
         private void IntentarEnviarTransaccion(int idBalanza, decimal peso, string usuario)
         {
+            // Recuperamos qué producto tiene asignado esta balanza
+            string skuActual = _balanzas[idBalanza].SkuProducto;
+
             // 1. Si el Checkbox está marcado, simulamos que NO hay red
             if (chkSimularFalloRed.Checked)
             {
                 Log("⚠️ ERROR RED: Guardando en caché local...");
-                // Guardamos los datos en la cola como una cadena de texto
-                _offlineCache.Enqueue($"{idBalanza}|{peso}|{usuario}");
+                // Guardamos también el SKU en el caché
+                _offlineCache.Enqueue($"{idBalanza}|{peso}|{usuario}|{skuActual}");
                 UpdateOled("Offline", "Dato Guardado Local");
             }
             else
             {
-                // 2. Si HAY red, primero revisamos si hay cosas pendientes en la memoria (Redundancia)
+                // 2. Si HAY red, procesamos caché pendiente
                 while (_offlineCache.Count > 0)
                 {
                     string datoViejo = _offlineCache.Dequeue();
-
-                    // Separamos el texto guardado para recuperar los valores: "0|1.5|USER"
                     string[] partes = datoViejo.Split('|');
+
                     int bId = int.Parse(partes[0]);
                     decimal bPeso = decimal.Parse(partes[1]);
                     string bUser = partes[2];
+                    string bSku = partes.Length > 3 ? partes[3] : ""; // Recuperar SKU si existe
 
                     Log($"[RECONEXION] Sincronizando dato pendiente: Balanza {bId}");
-                    _server.EnviarTransaccion(bId, bPeso, bUser);
+                    _server.EnviarTransaccion(bId, bPeso, bUser, bSku);
                 }
 
-                // 3. Finalmente enviamos el dato actual
-                bool exito = _server.EnviarTransaccion(idBalanza, peso, usuario);
+                // 3. Enviamos el dato actual CON EL SKU
+                bool exito = _server.EnviarTransaccion(idBalanza, peso, usuario, skuActual);
                 if (exito) UpdateOled("Conectado", "Transaccion OK");
             }
         }
