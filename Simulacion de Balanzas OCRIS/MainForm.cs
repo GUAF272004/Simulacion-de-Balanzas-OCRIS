@@ -15,6 +15,7 @@ namespace Simulacion_de_Balanzas_OCRIS
         private const string RACK_ID = "RACK-A";
         private const string FILE_PRODUCTOS = "productos_custom.txt";
         private const string FILE_ESTADO_FISICO = "estado_fisico_rack.txt";
+        private bool _sistemaEncendido = true; // Flag para saber el estado
 
         // Timers del sistema
         private Timer _keepAliveTimer;  // Para enviar latidos (Heartbeat)
@@ -40,24 +41,43 @@ namespace Simulacion_de_Balanzas_OCRIS
         public MainForm()
         {
             InitializeComponent();
-
             AplicarTemaOscuroVentana();
 
-            // 1. Inicializar sistemas internos
+            // 1. Cargar Usuarios en el Combo (NUEVO)
+            CargarUsuariosRFID();
+
+            // 2. Inicializar sistemas
             InitializeAuthTimer();
             InitializeHeartbeat();
-
-            // 2. Preparar Interfaz
             GenerarTecladoNumerico();
-            InitializeSimulation(); // Carga balanzas y productos base
 
-            // 3. Agregar botones de gestión
-            AgregarControlesGestionProductos(); // Botones Nuevo/Borrar
-            AgregarBotonApagarRack();           // Botón Apagar Sistema
+            // 3. Arrancar simulación
+            InitializeSimulation();
 
-            // 4. Conectar eventos manuales
+            // 4. UI Gestión
+            AgregarControlesGestionProductos();
+            // NOTA: Ya no llamamos a AgregarBotonApagarRack() aquí porque usaremos el btnSystemPower físico
+
+            // 5. Eventos
             this.btnScanBarcode.Click += new EventHandler(this.btnScanBarcode_Click);
             this.btnRFID.Click += new EventHandler(this.btnRFID_Click);
+
+            // CONECTAR NUEVO BOTÓN DE PODER
+            this.btnSystemPower.Click += new EventHandler(this.BtnSystemPower_Click);
+        }
+
+        private void CargarUsuariosRFID()
+        {
+            var usuarios = new List<UsuarioRFID>
+            {
+                new UsuarioRFID { Nombre = "Admin", ID = "USER-ADMIN-01" },
+                new UsuarioRFID { Nombre = "Almacenista Juan", ID = "USER-EMP-045" },
+                new UsuarioRFID { Nombre = "Supervisor Ana", ID = "USER-SUP-02" },
+                new UsuarioRFID { Nombre = "Desconocido", ID = "INVALID-CARD" }
+            };
+
+            cmbUsuarios.DataSource = usuarios;
+            cmbUsuarios.SelectedIndex = 0; // Seleccionar el primero por defecto
         }
 
         private void InitializeSimulation()
@@ -333,14 +353,20 @@ namespace Simulacion_de_Balanzas_OCRIS
 
         private void btnRFID_Click(object sender, EventArgs e)
         {
+            if (!_sistemaEncendido) return; // Seguridad extra
+
             if (_currentState == FirmwareState.WaitingAuth)
             {
-                _authTimer.Stop(); // Usuario llegó a tiempo
-                string idTarjeta = "USER-A1";
-                Log($"RFID Detectado: {idTarjeta}");
-                UpdateOled("Autenticado", "Procesando...");
+                _authTimer.Stop();
 
-                // Enviar cambios de TODAS las balanzas pendientes
+                // --- CAMBIO: OBTENER USUARIO DEL COMBO ---
+                var usuarioSel = (UsuarioRFID)cmbUsuarios.SelectedItem;
+                string idTarjeta = usuarioSel.ID;
+                // -----------------------------------------
+
+                Log($"RFID Detectado: {usuarioSel.Nombre} [{idTarjeta}]");
+                UpdateOled("Autenticado", $"Hola {usuarioSel.Nombre}");
+
                 foreach (int idBalanza in _balanzasPendientes)
                 {
                     var b = _balanzas[idBalanza];
@@ -349,8 +375,121 @@ namespace Simulacion_de_Balanzas_OCRIS
 
                 _balanzasPendientes.Clear();
                 _currentState = FirmwareState.Idle;
-                UpdateOled("Autenticado", "OK - Datos Enviados");
             }
+        }
+
+        private void BtnSystemPower_Click(object sender, EventArgs e)
+        {
+            if (_sistemaEncendido)
+            {
+                // --- SECUENCIA DE APAGADO ---
+                var confirm = MessageBox.Show("¿Apagar el sistema OCRIS?\nSe guardará el estado actual.", "Apagar", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                if (confirm == DialogResult.Yes)
+                {
+                    ApagarSistema();
+                }
+            }
+            else
+            {
+                // --- SECUENCIA DE ENCENDIDO ---
+                EncenderSistema();
+            }
+        }
+
+        private void ApagarSistema()
+        {
+            Log("🛑 Iniciando secuencia de apagado...");
+            GuardarEstadoFisico(); // Persistencia
+
+            // Parar Timers
+            _keepAliveTimer.Stop();
+            _authTimer.Stop();
+
+            // Enviar señal al servidor
+            Task.Run(() => _server.EnviarHeartbeat(RACK_ID, "SHUTDOWN"));
+
+            // Apagar UI
+            foreach (Control c in flpBalanzas.Controls)
+            {
+                if (c is ScaleControl scale)
+                {
+                    scale.SetLedState(false, Color.Black);
+                    scale.UpdateDisplay("", 0);
+                    scale.BackColor = Color.FromArgb(20, 20, 20);
+                    scale.Enabled = false;
+                }
+            }
+
+            // Deshabilitar controles excepto el botón de encendido
+            ToggleControles(false);
+
+            UpdateOled("", ""); // Pantalla negra
+            pnlOledScreen.BackColor = Color.Black; // Apagar luz de fondo simulada
+            lblOled.Visible = false;
+
+            // Cambiar estado del botón
+            btnSystemPower.Text = "⚡ ENCENDER SISTEMA";
+            btnSystemPower.BackColor = Color.Gray;
+            _sistemaEncendido = false;
+            Log("Sistema APAGADO.");
+        }
+
+        private void EncenderSistema()
+        {
+            Log("⚡ Iniciando secuencia de arranque...");
+
+            // Reactivar controles
+            ToggleControles(true);
+            lblOled.Visible = true;
+            pnlOledScreen.BackColor = Color.Black;
+
+            // Restaurar apariencia de balanzas
+            foreach (Control c in flpBalanzas.Controls)
+            {
+                if (c is ScaleControl scale)
+                {
+                    scale.BackColor = Color.FromArgb(50, 50, 50); // Color encendido
+                    scale.Enabled = true;
+                    scale.UpdateDisplay("Iniciando...", 0);
+                }
+            }
+
+            // Reiniciar Timers
+            _keepAliveTimer.Start();
+
+            // Enviar señal de vida
+            Task.Run(() => _server.EnviarHeartbeat(RACK_ID, "ACTIVE"));
+
+            // Cambiar estado del botón
+            btnSystemPower.Text = "🛑 APAGAR SISTEMA";
+            btnSystemPower.BackColor = Color.ForestGreen;
+            _sistemaEncendido = true;
+
+            // RESTAURAR ESTADO (Recargar archivo)
+            // No necesitamos llamar a InitializeSimulation completo porque duplicaría controles
+            // Solo recargamos los datos lógicos y físicos.
+            CargarEstadoFisico();
+
+            // Disparar secuencia de inicio (OLED, etc)
+            UpdateOled("Inicializando...", "Recuperando estado...");
+            Timer boot = new Timer { Interval = 1500 };
+            boot.Tick += (s, args) =>
+            {
+                boot.Stop();
+                FinalizarAsignacionIndices(); // Saltamos la asignación manual al reiniciar para simular "memoria"
+            };
+            boot.Start();
+        }
+
+        private void ToggleControles(bool estado)
+        {
+            flpProductos.Enabled = estado;
+            btnScanBarcode.Enabled = estado;
+            btnRFID.Enabled = estado;
+            txtBarcode.Enabled = estado;
+            flowLayoutPanelKeypad.Enabled = estado;
+            chkModoRetiro.Enabled = estado;
+            // El botón de Power NO se deshabilita nunca
         }
 
         private void ProcesarAjusteNoAutenticado()
@@ -780,5 +919,12 @@ namespace Simulacion_de_Balanzas_OCRIS
                 Log($"Error cargando estado físico: {ex.Message}");
             }
         }
+    }
+
+    public class UsuarioRFID
+    {
+        public string Nombre { get; set; }
+        public string ID { get; set; }
+        public override string ToString() => $"{Nombre} ({ID})"; // Para que se vea bonito en el Combo
     }
 }

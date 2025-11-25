@@ -14,6 +14,9 @@ namespace Simulacion_de_Balanzas_OCRIS // IMPORTANTE: Cambia por tu namespace
             IdHardware = id;
             this.AllowDrop = true; // Permite arrastrar productos físicos sobre la balanza
 
+            this.pictureBoxItem.Image = Properties.Resources.balanza;
+            this.pictureBoxItem.SizeMode = PictureBoxSizeMode.Zoom; // Ajuste perfecto
+
             this.DragEnter += ScaleControl_DragEnter;
             this.DragDrop += ScaleControl_DragDrop;
             this.Click += ScaleControl_Click;
@@ -49,5 +52,6 @@ namespace Simulacion_de_Balanzas_OCRIS // IMPORTANTE: Cambia por tu namespace
         {
             ScaleClicked?.Invoke(this, EventArgs.Empty);
         }
+
     }
 }
