@@ -12,7 +12,7 @@ namespace Simulacion_de_Balanzas_OCRIS
     public partial class MainForm : Form
     {
         // --- CONSTANTES Y VARIABLES GLOBALES ---
-        private const string RACK_ID = "RACK-A-01";
+        private const string RACK_ID = "RACK-A";
         private const string FILE_PRODUCTOS = "productos_custom.txt";
         private const string FILE_ESTADO_FISICO = "estado_fisico_rack.txt";
 
