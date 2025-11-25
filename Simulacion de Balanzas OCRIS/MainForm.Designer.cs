@@ -38,53 +38,51 @@
             // flpBalanzas
             // 
             this.flpBalanzas.AutoScroll = true;
-            this.flpBalanzas.BackColor = System.Drawing.Color.LightGray;
-            this.flpBalanzas.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D;
+            this.flpBalanzas.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(30)))), ((int)(((byte)(30)))), ((int)(((byte)(30)))));
             this.flpBalanzas.Dock = System.Windows.Forms.DockStyle.Left;
             this.flpBalanzas.Location = new System.Drawing.Point(0, 0);
-            this.flpBalanzas.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            this.flpBalanzas.Margin = new System.Windows.Forms.Padding(0);
             this.flpBalanzas.Name = "flpBalanzas";
-            this.flpBalanzas.Padding = new System.Windows.Forms.Padding(11);
-            this.flpBalanzas.Size = new System.Drawing.Size(753, 511);
+            this.flpBalanzas.Padding = new System.Windows.Forms.Padding(15);
+            this.flpBalanzas.Size = new System.Drawing.Size(800, 529);
             this.flpBalanzas.TabIndex = 0;
             // 
             // panelRight
             // 
-            this.panelRight.BackColor = System.Drawing.Color.White;
+            this.panelRight.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(45)))), ((int)(((byte)(45)))), ((int)(((byte)(48)))));
             this.panelRight.Controls.Add(this.flpProductos);
             this.panelRight.Controls.Add(this.lblProductos);
             this.panelRight.Controls.Add(this.groupBoxPinpad);
             this.panelRight.Controls.Add(this.groupBoxOled);
             this.panelRight.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.panelRight.Location = new System.Drawing.Point(753, 0);
-            this.panelRight.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            this.panelRight.Location = new System.Drawing.Point(800, 0);
             this.panelRight.Name = "panelRight";
-            this.panelRight.Padding = new System.Windows.Forms.Padding(11);
-            this.panelRight.Size = new System.Drawing.Size(660, 511);
+            this.panelRight.Padding = new System.Windows.Forms.Padding(15);
+            this.panelRight.Size = new System.Drawing.Size(613, 529);
             this.panelRight.TabIndex = 1;
             // 
             // flpProductos
             // 
             this.flpProductos.AutoScroll = true;
-            this.flpProductos.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.flpProductos.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(50)))), ((int)(((byte)(50)))), ((int)(((byte)(55)))));
             this.flpProductos.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.flpProductos.Location = new System.Drawing.Point(11, 392);
-            this.flpProductos.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            this.flpProductos.Location = new System.Drawing.Point(15, 469);
             this.flpProductos.Name = "flpProductos";
-            this.flpProductos.Size = new System.Drawing.Size(638, 108);
+            this.flpProductos.Size = new System.Drawing.Size(583, 45);
             this.flpProductos.TabIndex = 2;
             // 
             // lblProductos
             // 
             this.lblProductos.AutoSize = true;
             this.lblProductos.Dock = System.Windows.Forms.DockStyle.Top;
-            this.lblProductos.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold);
-            this.lblProductos.Location = new System.Drawing.Point(11, 356);
+            this.lblProductos.Font = new System.Drawing.Font("Segoe UI Semibold", 11F, System.Drawing.FontStyle.Bold);
+            this.lblProductos.ForeColor = System.Drawing.Color.WhiteSmoke;
+            this.lblProductos.Location = new System.Drawing.Point(15, 424);
             this.lblProductos.Name = "lblProductos";
-            this.lblProductos.Padding = new System.Windows.Forms.Padding(0, 11, 0, 5);
-            this.lblProductos.Size = new System.Drawing.Size(152, 36);
+            this.lblProductos.Padding = new System.Windows.Forms.Padding(0, 15, 0, 5);
+            this.lblProductos.Size = new System.Drawing.Size(185, 45);
             this.lblProductos.TabIndex = 3;
-            this.lblProductos.Text = "Arrastrar Productos:";
+            this.lblProductos.Text = "📦 Inventario Físico:";
             // 
             // groupBoxPinpad
             // 
@@ -95,122 +93,139 @@
             this.groupBoxPinpad.Controls.Add(this.btnScanBarcode);
             this.groupBoxPinpad.Controls.Add(this.btnRFID);
             this.groupBoxPinpad.Dock = System.Windows.Forms.DockStyle.Top;
-            this.groupBoxPinpad.Location = new System.Drawing.Point(11, 118);
-            this.groupBoxPinpad.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            this.groupBoxPinpad.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.groupBoxPinpad.ForeColor = System.Drawing.Color.Gainsboro;
+            this.groupBoxPinpad.Location = new System.Drawing.Point(15, 139);
             this.groupBoxPinpad.Name = "groupBoxPinpad";
-            this.groupBoxPinpad.Padding = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.groupBoxPinpad.Size = new System.Drawing.Size(638, 238);
+            this.groupBoxPinpad.Size = new System.Drawing.Size(583, 285);
             this.groupBoxPinpad.TabIndex = 1;
             this.groupBoxPinpad.TabStop = false;
             this.groupBoxPinpad.Text = "Controles Físicos";
             // 
             // chkModoRetiro
             // 
+            this.chkModoRetiro.Anchor = System.Windows.Forms.AnchorStyles.Top;
             this.chkModoRetiro.AutoSize = true;
-            this.chkModoRetiro.Location = new System.Drawing.Point(520, 100);
-            this.chkModoRetiro.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            this.chkModoRetiro.Font = new System.Drawing.Font("Segoe UI", 10F);
+            this.chkModoRetiro.ForeColor = System.Drawing.Color.Orange;
+            this.chkModoRetiro.Location = new System.Drawing.Point(380, 90);
             this.chkModoRetiro.Name = "chkModoRetiro";
-            this.chkModoRetiro.Size = new System.Drawing.Size(103, 20);
+            this.chkModoRetiro.Size = new System.Drawing.Size(127, 27);
             this.chkModoRetiro.TabIndex = 5;
             this.chkModoRetiro.Text = "Modo Retiro";
             this.chkModoRetiro.UseVisualStyleBackColor = true;
             // 
             // chkSimularFalloRed
             // 
+            this.chkSimularFalloRed.Anchor = System.Windows.Forms.AnchorStyles.Top;
             this.chkSimularFalloRed.AutoSize = true;
-            this.chkSimularFalloRed.Location = new System.Drawing.Point(520, 76);
-            this.chkSimularFalloRed.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            this.chkSimularFalloRed.Font = new System.Drawing.Font("Segoe UI", 10F);
+            this.chkSimularFalloRed.ForeColor = System.Drawing.Color.IndianRed;
+            this.chkSimularFalloRed.Location = new System.Drawing.Point(225, 90);
             this.chkSimularFalloRed.Name = "chkSimularFalloRed";
-            this.chkSimularFalloRed.Size = new System.Drawing.Size(109, 20);
+            this.chkSimularFalloRed.Size = new System.Drawing.Size(126, 27);
             this.chkSimularFalloRed.TabIndex = 4;
             this.chkSimularFalloRed.Text = "Fallo De Red";
             this.chkSimularFalloRed.UseVisualStyleBackColor = true;
             // 
             // flowLayoutPanelKeypad
             // 
-            this.flowLayoutPanelKeypad.Location = new System.Drawing.Point(11, 23);
-            this.flowLayoutPanelKeypad.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            this.flowLayoutPanelKeypad.Location = new System.Drawing.Point(20, 30);
             this.flowLayoutPanelKeypad.Name = "flowLayoutPanelKeypad";
-            this.flowLayoutPanelKeypad.Size = new System.Drawing.Size(347, 206);
+            this.flowLayoutPanelKeypad.Size = new System.Drawing.Size(331, 220);
             this.flowLayoutPanelKeypad.TabIndex = 0;
             // 
             // txtBarcode
             // 
-            this.txtBarcode.Location = new System.Drawing.Point(363, 85);
-            this.txtBarcode.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            this.txtBarcode.Anchor = System.Windows.Forms.AnchorStyles.Top;
+            this.txtBarcode.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(60)))), ((int)(((byte)(60)))), ((int)(((byte)(65)))));
+            this.txtBarcode.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.txtBarcode.Font = new System.Drawing.Font("Consolas", 12F);
+            this.txtBarcode.ForeColor = System.Drawing.Color.White;
+            this.txtBarcode.Location = new System.Drawing.Point(220, 135);
             this.txtBarcode.Name = "txtBarcode";
-            this.txtBarcode.Size = new System.Drawing.Size(148, 22);
+            this.txtBarcode.Size = new System.Drawing.Size(320, 31);
             this.txtBarcode.TabIndex = 1;
+            this.txtBarcode.TextAlign = System.Windows.Forms.HorizontalAlignment.Center;
             // 
             // btnScanBarcode
             // 
-            this.btnScanBarcode.Location = new System.Drawing.Point(363, 117);
-            this.btnScanBarcode.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            this.btnScanBarcode.Anchor = System.Windows.Forms.AnchorStyles.Top;
+            this.btnScanBarcode.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(64)))), ((int)(((byte)(64)))), ((int)(((byte)(64)))));
+            this.btnScanBarcode.FlatAppearance.BorderColor = System.Drawing.Color.Gray;
+            this.btnScanBarcode.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.btnScanBarcode.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.btnScanBarcode.ForeColor = System.Drawing.Color.White;
+            this.btnScanBarcode.Location = new System.Drawing.Point(220, 180);
             this.btnScanBarcode.Name = "btnScanBarcode";
-            this.btnScanBarcode.Size = new System.Drawing.Size(149, 32);
+            this.btnScanBarcode.Size = new System.Drawing.Size(320, 40);
             this.btnScanBarcode.TabIndex = 2;
-            this.btnScanBarcode.Text = "🔫 Escanear";
-            this.btnScanBarcode.UseVisualStyleBackColor = true;
+            this.btnScanBarcode.Text = "🔫 Escanear Código";
+            this.btnScanBarcode.UseVisualStyleBackColor = false;
             // 
             // btnRFID
             // 
-            this.btnRFID.BackColor = System.Drawing.Color.LightSkyBlue;
+            this.btnRFID.Anchor = System.Windows.Forms.AnchorStyles.Top;
+            this.btnRFID.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(122)))), ((int)(((byte)(204)))));
+            this.btnRFID.Cursor = System.Windows.Forms.Cursors.Hand;
+            this.btnRFID.FlatAppearance.BorderSize = 0;
             this.btnRFID.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
-            this.btnRFID.Location = new System.Drawing.Point(363, 23);
-            this.btnRFID.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            this.btnRFID.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
+            this.btnRFID.ForeColor = System.Drawing.Color.White;
+            this.btnRFID.Location = new System.Drawing.Point(220, 30);
             this.btnRFID.Name = "btnRFID";
-            this.btnRFID.Size = new System.Drawing.Size(149, 43);
+            this.btnRFID.Size = new System.Drawing.Size(320, 45);
             this.btnRFID.TabIndex = 3;
-            this.btnRFID.Text = "💳 Pasar Tarjeta RFID";
+            this.btnRFID.Text = "💳 Pasar Tarjeta RFID (Confirmar)";
             this.btnRFID.UseVisualStyleBackColor = false;
             // 
             // groupBoxOled
             // 
             this.groupBoxOled.Controls.Add(this.pnlOledScreen);
             this.groupBoxOled.Dock = System.Windows.Forms.DockStyle.Top;
-            this.groupBoxOled.Location = new System.Drawing.Point(11, 11);
-            this.groupBoxOled.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            this.groupBoxOled.Font = new System.Drawing.Font("Segoe UI", 9F);
+            this.groupBoxOled.ForeColor = System.Drawing.Color.Gainsboro;
+            this.groupBoxOled.Location = new System.Drawing.Point(15, 15);
             this.groupBoxOled.Name = "groupBoxOled";
-            this.groupBoxOled.Padding = new System.Windows.Forms.Padding(3, 2, 3, 2);
-            this.groupBoxOled.Size = new System.Drawing.Size(638, 107);
+            this.groupBoxOled.Size = new System.Drawing.Size(583, 124);
             this.groupBoxOled.TabIndex = 0;
             this.groupBoxOled.TabStop = false;
-            this.groupBoxOled.Text = "Pantalla OLED (Simulación)";
+            this.groupBoxOled.Text = "Pantalla OLED";
             // 
             // pnlOledScreen
             // 
             this.pnlOledScreen.BackColor = System.Drawing.Color.Black;
+            this.pnlOledScreen.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.pnlOledScreen.Controls.Add(this.lblOled);
             this.pnlOledScreen.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.pnlOledScreen.Location = new System.Drawing.Point(3, 17);
-            this.pnlOledScreen.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            this.pnlOledScreen.Location = new System.Drawing.Point(3, 23);
             this.pnlOledScreen.Name = "pnlOledScreen";
             this.pnlOledScreen.Padding = new System.Windows.Forms.Padding(5);
-            this.pnlOledScreen.Size = new System.Drawing.Size(632, 88);
+            this.pnlOledScreen.Size = new System.Drawing.Size(577, 98);
             this.pnlOledScreen.TabIndex = 0;
             // 
             // lblOled
             // 
             this.lblOled.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.lblOled.Font = new System.Drawing.Font("Consolas", 10F);
-            this.lblOled.ForeColor = System.Drawing.Color.Lime;
+            this.lblOled.Font = new System.Drawing.Font("Consolas", 12F, System.Drawing.FontStyle.Bold);
+            this.lblOled.ForeColor = System.Drawing.Color.LimeGreen;
             this.lblOled.Location = new System.Drawing.Point(5, 5);
             this.lblOled.Name = "lblOled";
-            this.lblOled.Size = new System.Drawing.Size(622, 78);
+            this.lblOled.Size = new System.Drawing.Size(565, 86);
             this.lblOled.TabIndex = 0;
             this.lblOled.Text = "SISTEMA APAGADO";
-            this.lblOled.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
+            this.lblOled.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             // 
             // rtbLog
             // 
-            this.rtbLog.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(30)))), ((int)(((byte)(30)))), ((int)(((byte)(30)))));
+            this.rtbLog.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(25)))), ((int)(((byte)(25)))), ((int)(((byte)(25)))));
+            this.rtbLog.BorderStyle = System.Windows.Forms.BorderStyle.None;
             this.rtbLog.Dock = System.Windows.Forms.DockStyle.Bottom;
             this.rtbLog.Font = new System.Drawing.Font("Consolas", 9F);
-            this.rtbLog.ForeColor = System.Drawing.Color.Silver;
-            this.rtbLog.Location = new System.Drawing.Point(0, 511);
-            this.rtbLog.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
+            this.rtbLog.ForeColor = System.Drawing.Color.DarkGray;
+            this.rtbLog.Location = new System.Drawing.Point(0, 529);
             this.rtbLog.Name = "rtbLog";
-            this.rtbLog.Size = new System.Drawing.Size(1413, 144);
+            this.rtbLog.Size = new System.Drawing.Size(1413, 126);
             this.rtbLog.TabIndex = 2;
             this.rtbLog.Text = "";
             // 
@@ -218,13 +233,14 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            this.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(45)))), ((int)(((byte)(45)))), ((int)(((byte)(48)))));
             this.ClientSize = new System.Drawing.Size(1413, 655);
             this.Controls.Add(this.panelRight);
             this.Controls.Add(this.flpBalanzas);
             this.Controls.Add(this.rtbLog);
-            this.Margin = new System.Windows.Forms.Padding(3, 2, 3, 2);
             this.Name = "MainForm";
-            this.Text = "Simulador OCRIS - OuroCore Realtime Inventory System";
+            this.Text = "OCRIS | OuroCore Realtime Inventory System";
+            this.WindowState = System.Windows.Forms.FormWindowState.Maximized;
             this.panelRight.ResumeLayout(false);
             this.panelRight.PerformLayout();
             this.groupBoxPinpad.ResumeLayout(false);
@@ -237,6 +253,7 @@
 
         #endregion
 
+        // Controles...
         private System.Windows.Forms.FlowLayoutPanel flpBalanzas;
         private System.Windows.Forms.Panel panelRight;
         private System.Windows.Forms.GroupBox groupBoxOled;
@@ -254,4 +271,3 @@
         private System.Windows.Forms.CheckBox chkModoRetiro;
     }
 }
-

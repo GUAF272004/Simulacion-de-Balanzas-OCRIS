@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq; // Necesario para .Count()
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Runtime.InteropServices;
 
 namespace Simulacion_de_Balanzas_OCRIS
 {
@@ -38,6 +39,8 @@ namespace Simulacion_de_Balanzas_OCRIS
         public MainForm()
         {
             InitializeComponent();
+
+            AplicarTemaOscuroVentana();
 
             // 1. Inicializar sistemas internos
             InitializeAuthTimer();
@@ -537,11 +540,25 @@ namespace Simulacion_de_Balanzas_OCRIS
         private void CrearBotonProductoArrastrable(string sku, string nombre)
         {
             Button btn = new Button();
-            btn.Text = nombre;
+            btn.Text = nombre + "\n(" + sku + ")";
             btn.Tag = sku;
-            btn.Size = new Size(280, 40);
-            btn.BackColor = Color.WhiteSmoke;
-            btn.MouseDown += (s, e) => { ((Button)s).DoDragDrop(((Button)s).Tag.ToString(), DragDropEffects.Copy); };
+            btn.Size = new Size(280, 50);
+
+            // --- ESTILO NUEVO ---
+            btn.FlatStyle = FlatStyle.Flat;
+            btn.FlatAppearance.BorderColor = Color.Gray;
+            btn.BackColor = Color.WhiteSmoke; // Mantenemos claro para simular "etiqueta" física
+            btn.ForeColor = Color.Black;
+            btn.TextAlign = ContentAlignment.MiddleLeft;
+            btn.Font = new Font("Segoe UI", 9);
+            btn.Margin = new Padding(0, 0, 0, 10);
+            // --------------------
+
+            btn.MouseDown += (s, e) => {
+                Button b = s as Button;
+                b.DoDragDrop(b.Tag.ToString(), DragDropEffects.Copy);
+            };
+
             flpProductos.Controls.Add(btn);
         }
 
@@ -558,7 +575,18 @@ namespace Simulacion_de_Balanzas_OCRIS
         {
             Button btn = new Button();
             btn.Text = texto;
-            btn.Width = 40; btn.Height = 40; btn.Margin = new Padding(3);
+            btn.Width = 50; // Un poco más grandes
+            btn.Height = 50;
+            btn.Margin = new Padding(5);
+
+            // --- ESTILO NUEVO ---
+            btn.FlatStyle = FlatStyle.Flat;
+            btn.FlatAppearance.BorderSize = 0;
+            btn.BackColor = Color.FromArgb(60, 60, 65); // Gris botón
+            btn.ForeColor = Color.White;
+            btn.Font = new Font("Segoe UI", 10, FontStyle.Bold);
+            // --------------------
+
             btn.Click += (s, e) => {
                 if (texto == "ENTER") OnEnterPressed();
                 else if (int.TryParse(texto, out int num)) SimularPinpadInput(num);
@@ -631,6 +659,26 @@ namespace Simulacion_de_Balanzas_OCRIS
                 if (decimal.TryParse(txt.Text.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out decimal val) && val > 0) return val;
                 MessageBox.Show("Ingrese un número válido mayor a 0.");
             }
+        }
+
+        // --- LÓGICA PARA BARRA DE TÍTULO OSCURA (DWM API) ---
+
+        [DllImport("dwmapi.dll", CharSet = CharSet.Unicode, PreserveSig = false)]
+        public static extern void DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int pvAttribute, int cbAttribute);
+
+        private void AplicarTemaOscuroVentana()
+        {
+            // Intenta aplicar el modo oscuro a la barra de título (Funciona en Win10 y Win11)
+            try
+            {
+                // Constante para "Use Immersive Dark Mode"
+                // En versiones viejas de Win10 era 19, en las nuevas y Win11 es 20
+                int preference = 1; // 1 = True (Activar)
+                int attribute = 20;
+
+                DwmSetWindowAttribute(this.Handle, attribute, ref preference, sizeof(int));
+            }
+            catch { /* Si falla (ej. Windows 7), no hacemos nada y se queda normal */ }
         }
     }
 }
