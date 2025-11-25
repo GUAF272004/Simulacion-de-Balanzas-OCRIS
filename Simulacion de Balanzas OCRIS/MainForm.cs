@@ -1,29 +1,50 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Linq;
+using System.Linq; // Necesario para .Count()
 using System.Windows.Forms;
 
-namespace Simulacion_de_Balanzas_OCRIS // IMPORTANTE: Cambia por tu namespace
+namespace Simulacion_de_Balanzas_OCRIS
 {
     public partial class MainForm : Form
     {
-        private Queue<string> _offlineCache = new Queue<string>(); // Simula la memoria del ESP32
+        // Cola para guardar datos si falla el internet
+        private Queue<string> _offlineCache = new Queue<string>();
+
+        // Timer para el timeout de autenticación
         private Timer _authTimer;
-        private int _lastModifiedScaleId = -1;
+
+        // CAMBIO IMPORTANTE: Usamos HashSet para guardar MULTIPLES IDs de balanzas modificadas.
+        // Esto permite mover la balanza 1 y la 2, y que al pasar la tarjeta se guarden ambas.
+        private HashSet<int> _balanzasPendientes = new HashSet<int>();
+
         enum FirmwareState { Booting, AssigningIndexes, Idle, EditMode, WaitingAuth }
 
         FirmwareState _currentState = FirmwareState.Booting;
         List<BalanzaFisica> _balanzas = new List<BalanzaFisica>();
+
+        // Usamos la implementación real que conecta a tu URL
         IServerAPI _server = new RealServer("https://ocris.stellarbanana.com");
 
         int _configIndexIterator = 0;
         int _selectedScaleId = -1;
 
+        public MainForm()
+        {
+            InitializeComponent();
+            InitializeAuthTimer(); // Inicializamos el timer antes de usarlo
+            GenerarTecladoNumerico();
+            InitializeSimulation();
+
+            // Aseguramos conexión de eventos
+            this.btnScanBarcode.Click += new EventHandler(this.btnScanBarcode_Click);
+            this.btnRFID.Click += new EventHandler(this.btnRFID_Click);
+        }
+
         private void InitializeAuthTimer()
         {
             _authTimer = new Timer();
-            _authTimer.Interval = 5000; // 5 segundos de espera según lógica de flujo
+            _authTimer.Interval = 5000; // 5 segundos de espera
             _authTimer.Tick += (s, e) =>
             {
                 _authTimer.Stop();
@@ -31,30 +52,57 @@ namespace Simulacion_de_Balanzas_OCRIS // IMPORTANTE: Cambia por tu namespace
             };
         }
 
-        private void ProcesarAjusteNoAutenticado()
+        private decimal? SolicitarPesoAlUsuario(string nombreProducto)
         {
-            Log("ALERTA: Tiempo agotado. Registrando Ajuste NO Autenticado.");
-            UpdateOled("Alerta", "Transaccion Anonima");
-
-            // Usamos la variable correcta
-            if (_lastModifiedScaleId != -1)
+            Form prompt = new Form()
             {
-                IntentarEnviarTransaccion(_lastModifiedScaleId, _balanzas[_lastModifiedScaleId].PesoActual, "ANONIMO");
+                Width = 350,
+                Height = 180,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                Text = "Entrada de Peso Variable",
+                StartPosition = FormStartPosition.CenterScreen,
+                MinimizeBox = false,
+                MaximizeBox = false
+            };
+
+            Label textLabel = new Label() { Left = 20, Top = 20, Width = 300, Text = $"¿Qué cantidad de {nombreProducto} (kg) vas a mover?" };
+            TextBox inputBox = new TextBox() { Left = 20, Top = 50, Width = 280 };
+            Button confirmation = new Button() { Text = "Aceptar", Left = 180, Width = 100, Top = 90, DialogResult = DialogResult.OK };
+            Button cancel = new Button() { Text = "Cancelar", Left = 20, Width = 100, Top = 90, DialogResult = DialogResult.Cancel };
+
+            prompt.Controls.Add(textLabel);
+            prompt.Controls.Add(inputBox);
+            prompt.Controls.Add(confirmation);
+            prompt.Controls.Add(cancel);
+            prompt.AcceptButton = confirmation;
+
+            // Bucle para validar que sea número
+            while (true)
+            {
+                if (prompt.ShowDialog() == DialogResult.OK)
+                {
+                    // Intentar convertir texto a decimal (soporta punto o coma según tu PC)
+                    if (decimal.TryParse(inputBox.Text.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out decimal pesoIngresado))
+                    {
+                        if (pesoIngresado <= 0)
+                        {
+                            MessageBox.Show("Por favor ingrese un valor mayor a 0.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            continue; // Volver a preguntar
+                        }
+                        return pesoIngresado; // Retornar el valor válido
+                    }
+                    else
+                    {
+                        MessageBox.Show("Valor inválido. Ingrese solo números (ej. 1.5).", "Error de Formato", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        // El bucle while hace que la ventana se vuelva a mostrar o se mantenga
+                        continue;
+                    }
+                }
+                else
+                {
+                    return null; // El usuario canceló la operación
+                }
             }
-
-            _currentState = FirmwareState.Idle;
-            _lastModifiedScaleId = -1;
-        }
-
-        public MainForm()
-        {
-            InitializeComponent();
-            InitializeAuthTimer();
-            GenerarTecladoNumerico(); // Crea botones del 0-9
-            InitializeSimulation();
-            // Conectar eventos de botones manualmente si el Designer no lo hizo
-            this.btnScanBarcode.Click += new System.EventHandler(this.btnScanBarcode_Click);
-            this.btnRFID.Click += new System.EventHandler(this.btnRFID_Click);
         }
 
         private void InitializeSimulation()
@@ -65,7 +113,6 @@ namespace Simulacion_de_Balanzas_OCRIS // IMPORTANTE: Cambia por tu namespace
                 var balanzaLogica = new BalanzaFisica { IdHardware = i, PesoActual = 0 };
                 _balanzas.Add(balanzaLogica);
 
-                // Pasamos el ID al constructor del control
                 var control = new ScaleControl(i);
                 control.ProductDropped += OnProductDroppedOnScale;
                 control.ScaleClicked += OnScaleClicked;
@@ -86,91 +133,167 @@ namespace Simulacion_de_Balanzas_OCRIS // IMPORTANTE: Cambia por tu namespace
             bootTimer.Start();
         }
 
-        // --- MÉTODOS AUXILIARES DE UI ---
+        // --- LÓGICA DE SENSORES Y PESO (Aquí está la lógica de Retiro y Múltiples Balanzas) ---
 
-        private void GenerarTecladoNumerico()
+        private void OnProductDroppedOnScale(object sender, string sku)
         {
-            // Botones 1-9
-            for (int i = 1; i <= 9; i++) CrearBotonPinpad(i.ToString());
+            var control = (ScaleControl)sender;
+            var balanza = _balanzas[control.IdHardware];
 
-            // Botón 0
-            CrearBotonPinpad("0");
-
-            // --- NUEVO: Botón ENTER ---
-            Button btnEnter = CrearBotonPinpad("ENTER");
-            btnEnter.BackColor = Color.LightGreen; // Para que destaque
-            btnEnter.Width = 86; // Un poco más ancho (ocupa 2 espacios si quieres)
-        }
-
-        private Button CrearBotonPinpad(string texto)
-        {
-            Button btn = new Button();
-            btn.Text = texto;
-            btn.Width = 40;
-            btn.Height = 40;
-            btn.Margin = new System.Windows.Forms.Padding(3);
-
-            btn.Click += (s, e) => {
-                // Si es ENTER, llamamos a su función especial
-                if (texto == "ENTER")
-                {
-                    OnEnterPressed();
-                }
-                // Si es número, seguimos con la lógica normal
-                else if (int.TryParse(texto, out int num))
-                {
-                    SimularPinpadInput(num);
-                }
-            };
-
-            flowLayoutPanelKeypad.Controls.Add(btn);
-            return btn; // Retornamos el botón por si queremos cambiarle color/tamaño
-        }
-
-        private void OnEnterPressed()
-        {
-            // Solo funciona si estamos en la fase de asignación
-            if (_currentState == FirmwareState.AssigningIndexes)
+            // 1. Validaciones de Seguridad
+            if (!balanza.ProductoAsignado)
             {
-                Log("Usuario presionó ENTER: Finalizando configuración manualmente.");
+                Log($"❌ ERROR: Balanza {control.IdHardware} sin asignar. Configure primero.");
+                control.SetLedState(true, Color.Red);
+                Timer errorTimer = new Timer { Interval = 1000 };
+                errorTimer.Tick += (s, e) => { control.SetLedState(false, Color.Gray); errorTimer.Stop(); };
+                errorTimer.Start();
+                return;
+            }
 
-                // Apagar el LED de la balanza que estaba esperando input actualmente
-                if (_configIndexIterator < flpBalanzas.Controls.Count)
+            if (balanza.SkuProducto != sku)
+            {
+                Log($"⚠️ ERROR: Producto incorrecto ({sku}) en balanza de {balanza.SkuProducto}.");
+                return;
+            }
+
+            Producto p = _server.ObtenerProductoPorSku(sku);
+
+            // --- CAMBIO: SOLICITUD DE PESO DINÁMICO ---
+
+            // Pausamos un momento para pedir el dato al usuario
+            decimal? pesoIngresado = SolicitarPesoAlUsuario(p.Nombre);
+
+            // Si el usuario canceló el popup o cerró la ventana, abortamos la operación
+            if (pesoIngresado == null) return;
+
+            decimal pesoAOperar = pesoIngresado.Value;
+            // -------------------------------------------
+
+            // 2. Lógica para SUMAR o RESTAR peso
+            if (chkModoRetiro.Checked)
+            {
+                pesoAOperar = -pesoAOperar; // Invertimos el peso si es retiro
+                Log($"Retirando {Math.Abs(pesoAOperar)}kg de {p.Nombre}...");
+            }
+            else
+            {
+                Log($"Agregando {pesoAOperar}kg de {p.Nombre}...");
+            }
+
+            // 3. Registrar balanza pendiente
+            _balanzasPendientes.Add(control.IdHardware);
+
+            // 4. Actualizar estado físico simulado
+            balanza.PesoActual += pesoAOperar;
+
+            // Evitar pesos negativos visuales (Calibración a 0)
+            if (balanza.PesoActual < 0) balanza.PesoActual = 0;
+
+            // Feedback visual de Alertas
+            VerificarAlertas(balanza, p, control);
+
+            control.UpdateDisplay(p.Nombre, balanza.PesoActual);
+
+            _currentState = FirmwareState.WaitingAuth;
+            UpdateOled("Cambio Peso", "Pase Tarjeta RFID...");
+
+            // Reiniciar el timer de inactividad
+            _authTimer.Stop();
+            _authTimer.Start();
+        }
+        private void VerificarAlertas(BalanzaFisica balanza, Producto p, ScaleControl control)
+        {
+            // Si el producto tiene umbrales definidos, cambiamos el LED
+            if (p.UmbralMin > 0 && balanza.PesoActual < p.UmbralMin)
+                control.SetLedState(true, Color.Red); // Alerta Stock Bajo
+            else if (p.UmbralMax > 0 && balanza.PesoActual > p.UmbralMax)
+                control.SetLedState(true, Color.Magenta); // Alerta Stock Alto
+            else
+                control.SetLedState(false, Color.Gray); // Todo OK
+        }
+
+        // --- AUTENTICACIÓN Y ENVÍO (Manejo de Lotes) ---
+
+        private void btnRFID_Click(object sender, EventArgs e)
+        {
+            if (_currentState == FirmwareState.WaitingAuth)
+            {
+                _authTimer.Stop(); // Usuario llegó a tiempo
+                string idTarjeta = "USER-A1";
+                Log($"RFID Detectado: {idTarjeta}");
+                UpdateOled("Autenticado", "Procesando...");
+
+                // Recorremos TODAS las balanzas que se modificaron
+                foreach (int idBalanza in _balanzasPendientes)
                 {
-                    var control = (ScaleControl)flpBalanzas.Controls[_configIndexIterator];
-                    control.SetLedState(false, Color.Gray);
+                    var b = _balanzas[idBalanza];
+                    // Enviamos cada una al servidor
+                    IntentarEnviarTransaccion(idBalanza, b.PesoActual, idTarjeta);
                 }
 
-                // Forzamos la finalización
-                FinalizarAsignacionIndices();
+                // Limpiamos la lista y volvemos a reposo
+                _balanzasPendientes.Clear();
+                _currentState = FirmwareState.Idle;
+                UpdateOled("Autenticado", "OK - Datos Enviados");
             }
         }
-        
-        private void CargarProductosArrastrables()
+
+        private void ProcesarAjusteNoAutenticado()
         {
-            // Creamos "cajas" visuales que representan el stock físico disponible para poner en balanzas
-            string[] skus = { "111", "222", "333" };
-            string[] nombres = { "Maíz (1kg)", "Vasos (0.5kg)", "Refresco (1.5kg)" };
+            Log("ALERTA: Tiempo agotado. Registrando Ajuste(s) NO Autenticado(s).");
+            UpdateOled("Alerta", "Transaccion Anonima");
 
-            for (int i = 0; i < skus.Length; i++)
+            // Enviamos todo lo pendiente como anónimo
+            foreach (int idBalanza in _balanzasPendientes)
             {
-                Button btnProd = new Button();
-                btnProd.Text = nombres[i];
-                btnProd.Tag = skus[i]; // Guardamos el SKU en el Tag
-                btnProd.Size = new Size(280, 40);
-                btnProd.BackColor = Color.WhiteSmoke;
+                var b = _balanzas[idBalanza];
+                IntentarEnviarTransaccion(idBalanza, b.PesoActual, "ANONIMO");
+            }
 
-                // Evento MouseDown inicia el arrastre (Drag)
-                btnProd.MouseDown += (s, e) => {
-                    Button b = s as Button;
-                    b.DoDragDrop(b.Tag.ToString(), DragDropEffects.Copy);
-                };
+            _balanzasPendientes.Clear();
+            _currentState = FirmwareState.Idle;
+        }
 
-                flpProductos.Controls.Add(btnProd);
+        // --- CONECTIVIDAD Y CACHÉ ---
+
+        private void IntentarEnviarTransaccion(int idBalanza, decimal peso, string usuario)
+        {
+            string skuActual = _balanzas[idBalanza].SkuProducto;
+
+            if (chkSimularFalloRed.Checked)
+            {
+                Log($"⚠️ ERROR RED: Guardando Balanza {idBalanza} en caché...");
+                // Guardamos ID|PESO|USER|SKU
+                _offlineCache.Enqueue($"{idBalanza}|{peso}|{usuario}|{skuActual}");
+                UpdateOled("Offline", "Dato Guardado Local");
+            }
+            else
+            {
+                // 1. Procesar caché pendiente primero
+                while (_offlineCache.Count > 0)
+                {
+                    string datoViejo = _offlineCache.Dequeue();
+                    string[] partes = datoViejo.Split('|');
+
+                    int bId = int.Parse(partes[0]);
+                    decimal bPeso = decimal.Parse(partes[1]);
+                    string bUser = partes[2];
+                    string bSku = partes.Length > 3 ? partes[3] : "";
+
+                    Log($"[RECONEXION] Sincronizando Balanza {bId}...");
+                    _server.EnviarTransaccion(bId, bPeso, bUser, bSku);
+                }
+
+                // 2. Enviar dato actual
+                bool exito = _server.EnviarTransaccion(idBalanza, peso, usuario, skuActual);
+
+                if (exito) Log($"[SERVER] Transacción enviada: Balanza {idBalanza}");
+                else UpdateOled("Error Server", "Fallo envio");
             }
         }
 
-        // --- LÓGICA DEL FIRMWARE (Máquina de Estados) ---
+        // --- CONFIGURACIÓN E INTERFAZ (Pinpad, Escáner, etc.) ---
 
         private void StartIdAssignmentProcess()
         {
@@ -189,7 +312,6 @@ namespace Simulacion_de_Balanzas_OCRIS // IMPORTANTE: Cambia por tu namespace
             }
             else
             {
-                // Ya llegamos al límite natural (8), finalizamos.
                 FinalizarAsignacionIndices();
             }
         }
@@ -197,21 +319,15 @@ namespace Simulacion_de_Balanzas_OCRIS // IMPORTANTE: Cambia por tu namespace
         private void FinalizarAsignacionIndices()
         {
             ApagarTodosLosLeds();
-
-            // 1. Contar cuántas configuramos realmente (para el log)
             int balanzasConfiguradas = _configIndexIterator;
-
-            // 2. Validar estado según PDF (Pág 47)
             int balanzasSinProducto = _balanzas.Count(b => !b.ProductoAsignado);
 
             if (balanzasSinProducto > 0)
             {
-                // Mostramos el mensaje de estado, pero NO bloqueamos el sistema.
-                // Según el flujo corregido, ahora entramos en modo "Espera de Productos".
                 UpdateOled("Configuracion", "Lista. Esperando Prod.");
                 Log($"Configuración terminada. {balanzasConfiguradas} balanzas activas.");
 
-                // Feedback visual: Poner todas las balanzas configuradas en Amarillo (Esperando producto)
+                // Ponemos en amarillo las que están listas
                 for (int i = 0; i < balanzasConfiguradas; i++)
                 {
                     var control = (ScaleControl)flpBalanzas.Controls[i];
@@ -223,7 +339,6 @@ namespace Simulacion_de_Balanzas_OCRIS // IMPORTANTE: Cambia por tu namespace
                 UpdateOled("Funcionando", "Correctamente");
             }
 
-            // 3. Liberar el sistema para operación (Escanear productos)
             _currentState = FirmwareState.Idle;
         }
 
@@ -232,11 +347,55 @@ namespace Simulacion_de_Balanzas_OCRIS // IMPORTANTE: Cambia por tu namespace
             foreach (ScaleControl c in flpBalanzas.Controls) c.SetLedState(false, Color.Gray);
         }
 
+        // --- PINPAD Y BOTONES ---
+
+        private void GenerarTecladoNumerico()
+        {
+            for (int i = 1; i <= 9; i++) CrearBotonPinpad(i.ToString());
+            CrearBotonPinpad("0");
+
+            // Botón ENTER para finalizar configuración anticipadamente
+            Button btnEnter = CrearBotonPinpad("ENTER");
+            btnEnter.BackColor = Color.LightGreen;
+            btnEnter.Width = 86;
+        }
+
+        private Button CrearBotonPinpad(string texto)
+        {
+            Button btn = new Button();
+            btn.Text = texto;
+            btn.Width = 40;
+            btn.Height = 40;
+            btn.Margin = new Padding(3);
+
+            btn.Click += (s, e) => {
+                if (texto == "ENTER") OnEnterPressed();
+                else if (int.TryParse(texto, out int num)) SimularPinpadInput(num);
+            };
+
+            flowLayoutPanelKeypad.Controls.Add(btn);
+            return btn;
+        }
+
+        private void OnEnterPressed()
+        {
+            if (_currentState == FirmwareState.AssigningIndexes)
+            {
+                Log("Usuario presionó ENTER: Finalizando configuración manualmente.");
+                if (_configIndexIterator < flpBalanzas.Controls.Count)
+                {
+                    var control = (ScaleControl)flpBalanzas.Controls[_configIndexIterator];
+                    control.SetLedState(false, Color.Gray);
+                }
+                FinalizarAsignacionIndices();
+            }
+        }
+
         private void SimularPinpadInput(int numeroIngresado)
         {
             if (_currentState == FirmwareState.AssigningIndexes)
             {
-                _balanzas[_configIndexIterator].IndiceLogico = numeroIngresado; // [cite: 1464]
+                _balanzas[_configIndexIterator].IndiceLogico = numeroIngresado;
                 Log($"Balanza HW:{_configIndexIterator} -> Logico:{numeroIngresado}");
 
                 ((ScaleControl)flpBalanzas.Controls[_configIndexIterator]).SetLedState(false, Color.Gray);
@@ -245,17 +404,18 @@ namespace Simulacion_de_Balanzas_OCRIS // IMPORTANTE: Cambia por tu namespace
             }
         }
 
+        // --- ESCÁNER Y EDICIÓN ---
+
         private void OnScaleClicked(object sender, EventArgs e)
         {
             _currentState = FirmwareState.EditMode;
             var control = (ScaleControl)sender;
             _selectedScaleId = control.IdHardware;
 
-            UpdateOled("Modo Edicion", "Escanee Codigo Barras"); // [cite: 1473]
+            UpdateOled("Modo Edicion", "Escanee Codigo Barras");
             control.SetLedState(true, Color.Orange);
         }
 
-        // Conecta este método al evento Click del botón btnScanBarcode en el Designer o aquí
         private void btnScanBarcode_Click(object sender, EventArgs e)
         {
             SimularEscaneoBarcode(txtBarcode.Text);
@@ -265,7 +425,7 @@ namespace Simulacion_de_Balanzas_OCRIS // IMPORTANTE: Cambia por tu namespace
         {
             if (_currentState == FirmwareState.EditMode && _selectedScaleId != -1)
             {
-                Producto p = _server.ObtenerProductoPorSku(skuEscaneado); // Consulta a BD [cite: 1476]
+                Producto p = _server.ObtenerProductoPorSku(skuEscaneado);
 
                 if (p != null)
                 {
@@ -287,98 +447,30 @@ namespace Simulacion_de_Balanzas_OCRIS // IMPORTANTE: Cambia por tu namespace
             }
         }
 
-        // --- SIMULACIÓN FÍSICA (Sensores) ---
-
-        private void OnProductDroppedOnScale(object sender, string sku)
+        // --- CARGA DE PRODUCTOS UI ---
+        private void CargarProductosArrastrables()
         {
-            var control = (ScaleControl)sender;
-            var balanza = _balanzas[control.IdHardware];
+            string[] skus = { "111", "222", "333" };
+            string[] nombres = { "Maíz", "Vasos", "Refresco" };
 
-            // Guardamos cuál es la balanza que se está modificando ahora mismo
-            _lastModifiedScaleId = control.IdHardware;
-
-            if (balanza.SkuProducto == sku)
+            for (int i = 0; i < skus.Length; i++)
             {
-                Producto p = _server.ObtenerProductoPorSku(sku);
-                balanza.PesoActual += p.PesoUnitario;
-                control.UpdateDisplay(p.Nombre, balanza.PesoActual);
+                Button btnProd = new Button();
+                btnProd.Text = nombres[i];
+                btnProd.Tag = skus[i];
+                btnProd.Size = new Size(280, 40);
+                btnProd.BackColor = Color.WhiteSmoke;
 
-                _currentState = FirmwareState.WaitingAuth;
-                UpdateOled("Cambio Peso", "Pase Tarjeta RFID...");
-            }
-            else
-            {
-                Log("ALERTA: Producto incorrecto colocado en balanza.");
-            }
+                btnProd.MouseDown += (s, e) => {
+                    Button b = s as Button;
+                    b.DoDragDrop(b.Tag.ToString(), DragDropEffects.Copy);
+                };
 
-            _currentState = FirmwareState.WaitingAuth;
-            UpdateOled("Cambio Detectado", "Pase Tarjeta o Espere...");
-
-            // --- CORRECCIÓN DE TIMER: REINICIAR CONTEO ---
-            _authTimer.Stop();  // Detener si ya estaba corriendo
-            _authTimer.Start(); // Iniciar desde 0
-                                // ---------------------------------------------
-        }
-
-        // Conecta este método al botón btnRFID
-        private void btnRFID_Click(object sender, EventArgs e)
-        {
-            if (_currentState == FirmwareState.WaitingAuth)
-            {
-                _authTimer.Stop(); // Detenemos el timer porque el usuario YA llegó
-
-                string idTarjeta = "USER-A1";
-                Log($"RFID Detectado: {idTarjeta}");
-                UpdateOled("Autenticado", "OK");
-
-                // Usamos la variable que guardamos, no el 0 hardcodeado
-                if (_lastModifiedScaleId != -1)
-                {
-                    IntentarEnviarTransaccion(_lastModifiedScaleId, _balanzas[_lastModifiedScaleId].PesoActual, idTarjeta);
-                }
-
-                _currentState = FirmwareState.Idle;
-                _lastModifiedScaleId = -1; // Reseteamos
+                flpProductos.Controls.Add(btnProd);
             }
         }
 
         private void UpdateOled(string t, string s) => lblOled.Text = $"{t}\n-----------------\n{s}";
         private void Log(string m) => rtbLog.AppendText($"[{DateTime.Now:mm:ss}] {m}\n");
-
-        private void IntentarEnviarTransaccion(int idBalanza, decimal peso, string usuario)
-        {
-            // Recuperamos qué producto tiene asignado esta balanza
-            string skuActual = _balanzas[idBalanza].SkuProducto;
-
-            // 1. Si el Checkbox está marcado, simulamos que NO hay red
-            if (chkSimularFalloRed.Checked)
-            {
-                Log("⚠️ ERROR RED: Guardando en caché local...");
-                // Guardamos también el SKU en el caché
-                _offlineCache.Enqueue($"{idBalanza}|{peso}|{usuario}|{skuActual}");
-                UpdateOled("Offline", "Dato Guardado Local");
-            }
-            else
-            {
-                // 2. Si HAY red, procesamos caché pendiente
-                while (_offlineCache.Count > 0)
-                {
-                    string datoViejo = _offlineCache.Dequeue();
-                    string[] partes = datoViejo.Split('|');
-
-                    int bId = int.Parse(partes[0]);
-                    decimal bPeso = decimal.Parse(partes[1]);
-                    string bUser = partes[2];
-                    string bSku = partes.Length > 3 ? partes[3] : ""; // Recuperar SKU si existe
-
-                    Log($"[RECONEXION] Sincronizando dato pendiente: Balanza {bId}");
-                    _server.EnviarTransaccion(bId, bPeso, bUser, bSku);
-                }
-
-                // 3. Enviamos el dato actual CON EL SKU
-                bool exito = _server.EnviarTransaccion(idBalanza, peso, usuario, skuActual);
-                if (exito) UpdateOled("Conectado", "Transaccion OK");
-            }
-        }
     }
 }
