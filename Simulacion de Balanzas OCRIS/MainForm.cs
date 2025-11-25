@@ -14,6 +14,7 @@ namespace Simulacion_de_Balanzas_OCRIS
         // --- CONSTANTES Y VARIABLES GLOBALES ---
         private const string RACK_ID = "RACK-A-01";
         private const string FILE_PRODUCTOS = "productos_custom.txt";
+        private const string FILE_ESTADO_FISICO = "estado_fisico_rack.txt";
 
         // Timers del sistema
         private Timer _keepAliveTimer;  // Para enviar latidos (Heartbeat)
@@ -75,6 +76,8 @@ namespace Simulacion_de_Balanzas_OCRIS
             }
 
             CargarProductosArrastrables(); // Carga productos base + custom
+
+            CargarEstadoFisico();
 
             Log("Sistema encendido.");
             UpdateOled("Inicializando...", "Conectando WiFi...");
@@ -174,14 +177,30 @@ namespace Simulacion_de_Balanzas_OCRIS
         {
             ApagarTodosLosLeds();
             int balanzasConfiguradas = _configIndexIterator;
+
+            // --- NUEVO: REPORTE DE ESTADO INICIAL AL BACKEND ---
+            Log("Sincronizando inventario inicial con el servidor...");
+            int reportesEnviados = 0;
+
+            foreach (var balanza in _balanzas)
+            {
+                // Si la balanza ya tiene producto y peso (por la carga física), lo reportamos
+                if (balanza.ProductoAsignado && balanza.PesoActual > 0)
+                {
+                    // Usamos "SYSTEM_BOOT" para indicar que es recuperación automática
+                    IntentarEnviarTransaccion(balanza.IdHardware, balanza.PesoActual, "SYSTEM_BOOT");
+                    reportesEnviados++;
+                }
+            }
+
+            if (reportesEnviados > 0) Log($"[SYNC] Se reportaron {reportesEnviados} balanzas con carga previa.");
+            // ---------------------------------------------------
+
             int balanzasSinProducto = _balanzas.Count(b => !b.ProductoAsignado);
 
             if (balanzasSinProducto > 0)
             {
                 UpdateOled("Configuracion", "Lista. Esperando Prod.");
-                Log($"Configuración terminada. {balanzasConfiguradas} balanzas activas.");
-
-                // Feedback visual: Amarillo = Listo para asignar producto
                 for (int i = 0; i < balanzasConfiguradas; i++)
                 {
                     ((ScaleControl)flpBalanzas.Controls[i]).SetLedState(true, Color.Yellow);
@@ -495,15 +514,24 @@ namespace Simulacion_de_Balanzas_OCRIS
 
         private void BtnApagarRack_Click(object sender, EventArgs e)
         {
-            var confirm = MessageBox.Show("¿Desea APAGAR todo el Rack?\nSe enviará la señal de desconexión.",
-                "Confirmar Apagado", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            var confirm = MessageBox.Show(
+                "¿Está seguro de que desea APAGAR todo el Rack?\nSe guardará el estado físico actual (productos y pesos).",
+                "Confirmar Apagado General",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning);
 
             if (confirm == DialogResult.Yes)
             {
                 Log("Iniciando secuencia de apagado del RACK...");
+
+                // 1. NUEVO: Guardar el estado físico antes de apagar nada
+                GuardarEstadoFisico();
+
+                // 2. Detener Timers
                 if (_keepAliveTimer != null) _keepAliveTimer.Stop();
                 if (_authTimer != null) _authTimer.Stop();
 
+                // 3. Enviar señal de SHUTDOWN al servidor
                 Task.Run(() =>
                 {
                     bool exito = _server.EnviarHeartbeat(RACK_ID, "SHUTDOWN");
@@ -513,6 +541,7 @@ namespace Simulacion_de_Balanzas_OCRIS
                     }));
                 });
 
+                // 4. Apagar visualmente TODAS las balanzas
                 foreach (Control c in flpBalanzas.Controls)
                 {
                     if (c is ScaleControl scale)
@@ -524,11 +553,13 @@ namespace Simulacion_de_Balanzas_OCRIS
                     }
                 }
 
+                // 5. Deshabilitar controles globales
                 flpProductos.Enabled = false;
                 btnScanBarcode.Enabled = false;
                 btnRFID.Enabled = false;
                 UpdateOled("SISTEMA", "DESCONECTADO");
 
+                // 6. Deshabilitar el propio botón
                 ((Button)sender).Enabled = false;
                 ((Button)sender).Text = "SYSTEM OFF";
                 ((Button)sender).BackColor = Color.Gray;
@@ -679,6 +710,75 @@ namespace Simulacion_de_Balanzas_OCRIS
                 DwmSetWindowAttribute(this.Handle, attribute, ref preference, sizeof(int));
             }
             catch { /* Si falla (ej. Windows 7), no hacemos nada y se queda normal */ }
+        }
+
+        // --- PERSISTENCIA DEL ESTADO FÍSICO ---
+
+        private void GuardarEstadoFisico()
+        {
+            try
+            {
+                using (StreamWriter sw = new StreamWriter(FILE_ESTADO_FISICO))
+                {
+                    foreach (var balanza in _balanzas)
+                    {
+                        // Formato: ID_HARDWARE | SKU | PESO
+                        // Guardamos incluso si el SKU es nulo (vacío) para restaurar el peso
+                        string linea = $"{balanza.IdHardware}|{balanza.SkuProducto ?? "NULL"}|{balanza.PesoActual.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+                        sw.WriteLine(linea);
+                    }
+                }
+                Log("💾 Estado físico del rack guardado en disco.");
+            }
+            catch (Exception ex)
+            {
+                Log($"Error guardando estado físico: {ex.Message}");
+            }
+        }
+
+        private void CargarEstadoFisico()
+        {
+            if (!File.Exists(FILE_ESTADO_FISICO)) return;
+
+            try
+            {
+                string[] lineas = File.ReadAllLines(FILE_ESTADO_FISICO);
+                foreach (string linea in lineas)
+                {
+                    string[] partes = linea.Split('|');
+                    if (partes.Length >= 3)
+                    {
+                        int idHw = int.Parse(partes[0]);
+                        string sku = partes[1] == "NULL" ? null : partes[1];
+                        decimal peso = decimal.Parse(partes[2], System.Globalization.CultureInfo.InvariantCulture);
+
+                        // Restauramos los datos en la memoria
+                        if (idHw < _balanzas.Count)
+                        {
+                            var balanza = _balanzas[idHw];
+                            balanza.SkuProducto = sku;
+                            balanza.PesoActual = peso;
+
+                            // Restauramos visualmente (si hay producto y peso)
+                            if (balanza.ProductoAsignado && peso > 0)
+                            {
+                                var control = (ScaleControl)flpBalanzas.Controls[idHw];
+                                Producto p = _server.ObtenerProductoPorSku(sku);
+                                string nombre = p != null ? p.Nombre : "Desconocido";
+                                control.UpdateDisplay(nombre, peso);
+
+                                // Si hay peso, probablemente queramos ver un indicador visual de que "hay algo ahí"
+                                // aunque el sistema no esté inicializado del todo aún.
+                            }
+                        }
+                    }
+                }
+                Log("📂 Estado físico restaurado (Productos sobre balanzas detectados).");
+            }
+            catch (Exception ex)
+            {
+                Log($"Error cargando estado físico: {ex.Message}");
+            }
         }
     }
 }
