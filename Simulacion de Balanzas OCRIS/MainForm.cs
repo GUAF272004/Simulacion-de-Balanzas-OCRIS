@@ -211,6 +211,14 @@ namespace Simulacion_de_Balanzas_OCRIS
                     IntentarEnviarTransaccion(balanza.IdHardware, balanza.PesoActual, "SYSTEM_BOOT");
                     reportesEnviados++;
                 }
+                else
+                {
+                    // Enviamos 0kg. Al no tener ProductoAsignado, el método enviará SKU "" (vacío).
+                    // Esto sobreescribirá el dato viejo en MongoDB.
+                    IntentarEnviarTransaccion(balanza.IdHardware, 0, "SYSTEM_BOOT");
+                }
+                // [CORRECCIÓN FIN]
+
             }
 
             if (reportesEnviados > 0) Log($"[SYNC] Se reportaron {reportesEnviados} balanzas con carga previa.");
